@@ -287,6 +287,8 @@
       margin-top: 23px;
     }
 
+    .stats[hidden] { display: none; }
+
     .question-count {
       color: var(--muted);
       font-size: 13px;
@@ -328,6 +330,33 @@
     }
 
     .card-body { padding: 27px 30px 30px; }
+
+    .start-screen h2 {
+      margin: 0;
+      font-size: 21px;
+      font-weight: 750;
+      letter-spacing: -.025em;
+    }
+
+    .start-copy {
+      margin: 8px 0 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .start-actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .start-actions .next-button { width: 100%; }
+
+    .start-button-secondary {
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      color: var(--text);
+      box-shadow: none;
+    }
 
     .question-number {
       margin: 0 0 8px;
@@ -552,6 +581,7 @@
       .card { border-radius: 19px; }
       .card-head { padding: 23px 21px 18px; }
       .card-body { padding: 23px 21px 24px; }
+      .start-screen h2 { font-size: 20px; }
       .question { min-height: 0; font-size: 19px; }
       .answer { min-height: 53px; }
       .result { padding: 34px 21px 29px; }
@@ -592,15 +622,23 @@
           </span>
         </h1>
         <p class="subtitle">Diez preguntas para descubrir cuánto sabes del universo y de quienes lo exploran.</p>
-        <div class="stats">
+        <div class="stats" id="stats" hidden>
           <span class="question-count">Pregunta <strong id="current-number">1</strong> de <strong id="total-number">10</strong></span>
           <span class="score" aria-live="polite"><span class="score-icon" aria-hidden="true">★</span><span id="score">0</span> puntos</span>
         </div>
-        <div class="progress-track" role="progressbar" aria-label="Progreso del cuestionario" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0" aria-valuetext="Pregunta 1 de 10" id="progress">
+        <div class="progress-track" role="progressbar" aria-label="Progreso del cuestionario" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0" aria-valuetext="Pregunta 1 de 10" id="progress" hidden>
           <div class="progress-fill" id="progress-fill"></div>
         </div>
       </div>
-      <div class="card-body" id="quiz">
+      <div class="card-body start-screen" id="start-screen" aria-labelledby="start-title">
+        <h2 id="start-title">¿Cómo quieres explorar?</h2>
+        <p class="start-copy">Elige cómo quieres recorrer las diez preguntas.</p>
+        <div class="start-actions">
+          <button class="next-button" id="start-original" type="button">Iniciar en orden actual</button>
+          <button class="next-button start-button-secondary" id="start-random" type="button">Iniciar en orden aleatorio</button>
+        </div>
+      </div>
+      <div class="card-body" id="quiz" hidden>
         <p class="question-number" id="question-label">Pregunta 01</p>
         <h2 class="question" id="question" tabindex="-1" aria-live="polite"></h2>
         <div class="answers" id="answers" role="group" aria-label="Opciones de respuesta. Usa las flechas para cambiar de opción."></div>
@@ -688,15 +726,31 @@
     const feedback = document.querySelector("#feedback");
     const nextButton = document.querySelector("#next");
     const quiz = document.querySelector("#quiz");
+    const startScreen = document.querySelector("#start-screen");
+    const startOriginalButton = document.querySelector("#start-original");
+    const startRandomButton = document.querySelector("#start-random");
+    const stats = document.querySelector("#stats");
     const result = document.querySelector("#result");
+    let activeQuestions = questions;
+    let randomMode = false;
     let questionIndex = 0;
     let score = 0;
     let answered = false;
 
     document.querySelector("#total-number").textContent = questions.length;
+    progress.setAttribute("aria-valuemax", questions.length);
+
+    function shuffleQuestions() {
+      const shuffled = [...questions];
+      for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+      }
+      return shuffled;
+    }
 
     function renderQuestion() {
-      const item = questions[questionIndex];
+      const item = activeQuestions[questionIndex];
       answered = false;
       currentNumber.textContent = questionIndex + 1;
       questionLabel.textContent = `Pregunta ${String(questionIndex + 1).padStart(2, "0")}`;
@@ -706,8 +760,8 @@
       feedback.textContent = "";
       nextButton.hidden = true;
       progress.setAttribute("aria-valuenow", questionIndex);
-      progress.setAttribute("aria-valuetext", `Pregunta ${questionIndex + 1} de ${questions.length}`);
-      progressFill.style.width = `${(questionIndex / questions.length) * 100}%`;
+      progress.setAttribute("aria-valuetext", `Pregunta ${questionIndex + 1} de ${activeQuestions.length}`);
+      progressFill.style.width = `${(questionIndex / activeQuestions.length) * 100}%`;
 
       item.options.forEach((option, index) => {
         const button = document.createElement("button");
@@ -719,6 +773,20 @@
         answers.append(button);
       });
     }
+
+    function startGame(useRandomOrder) {
+      randomMode = useRandomOrder;
+      activeQuestions = randomMode ? shuffleQuestions() : questions;
+      startScreen.hidden = true;
+      stats.hidden = false;
+      progress.hidden = false;
+      quiz.hidden = false;
+      renderQuestion();
+      questionText.focus({ preventScroll: true });
+    }
+
+    startOriginalButton.addEventListener("click", () => startGame(false));
+    startRandomButton.addEventListener("click", () => startGame(true));
 
     answers.addEventListener("keydown", event => {
       if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"].includes(event.key)) return;
@@ -738,7 +806,7 @@
     function selectAnswer(selectedIndex) {
       if (answered) return;
       answered = true;
-      const item = questions[questionIndex];
+      const item = activeQuestions[questionIndex];
       const buttons = [...answers.querySelectorAll(".answer")];
       buttons.forEach(button => { button.disabled = true; });
 
@@ -754,7 +822,7 @@
         feedback.className = "feedback visible wrong";
         feedback.innerHTML = `<span aria-hidden="true">↗</span><span>No exactamente. ${item.fact}</span>`;
       }
-      nextButton.innerHTML = questionIndex === questions.length - 1
+      nextButton.innerHTML = questionIndex === activeQuestions.length - 1
         ? 'Ver resultados <span aria-hidden="true">→</span>'
         : 'Siguiente pregunta <span aria-hidden="true">→</span>';
       nextButton.hidden = false;
@@ -762,7 +830,7 @@
     }
 
     function showResults() {
-      const percent = score / questions.length;
+      const percent = score / activeQuestions.length;
       const reaction = percent === 1 ? "🚀" : percent >= .7 ? "🪐" : percent >= .4 ? "🌙" : "🌱";
       const headline = percent === 1 ? "¡De otro planeta!" : percent >= .7 ? "¡Gran explorador!" : percent >= .4 ? "¡Vas por buen camino!" : "¡Tu misión empieza aquí!";
       const message = percent === 1
@@ -773,15 +841,15 @@
             ? "Ya tienes una buena base. Cada misión te acerca un poco más."
             : "Cada gran explorador empieza con una pregunta. ¡Sigue descubriendo!";
       quiz.hidden = true;
-      document.querySelector(".stats").hidden = true;
+      stats.hidden = true;
       progressFill.style.width = "100%";
-      progress.setAttribute("aria-valuenow", questions.length);
+      progress.setAttribute("aria-valuenow", activeQuestions.length);
       result.innerHTML = `
         <div class="result-emoji" aria-hidden="true">${reaction}</div>
         <p class="eyebrow" style="justify-content:center">Misión completada</p>
         <h2>${headline}</h2>
         <p class="result-copy">${message}</p>
-        <div class="final-score" role="group" aria-label="Puntuación final: ${score} de ${questions.length} respuestas correctas"><strong>${score} / ${questions.length}</strong><span>respuestas correctas</span></div>
+        <div class="final-score" role="group" aria-label="Puntuación final: ${score} de ${activeQuestions.length} respuestas correctas"><strong>${score} / ${activeQuestions.length}</strong><span>respuestas correctas</span></div>
         <br>
         <button class="next-button" id="restart" type="button">Volver a explorar <span aria-hidden="true">↻</span></button>`;
       result.hidden = false;
@@ -792,8 +860,9 @@
     function restart() {
       questionIndex = 0;
       score = 0;
+      activeQuestions = randomMode ? shuffleQuestions() : questions;
       scoreLabel.textContent = score;
-      document.querySelector(".stats").hidden = false;
+      stats.hidden = false;
       result.hidden = true;
       quiz.hidden = false;
       renderQuestion();
@@ -801,7 +870,7 @@
     }
 
     nextButton.addEventListener("click", () => {
-      if (questionIndex < questions.length - 1) {
+      if (questionIndex < activeQuestions.length - 1) {
         questionIndex += 1;
         renderQuestion();
         questionText.focus({ preventScroll: true });
